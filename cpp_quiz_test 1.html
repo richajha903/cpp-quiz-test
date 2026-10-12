@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>cpp::quiz — timed practice</title>
+<style>
+:root{
+  --bg:#0d0f14; --panel:#151822; --panel2:#1b1f2b; --line:#262b3a;
+  --text:#dfe2ec; --muted:#7d8399; --accent:#5b8cff; --good:#3ecf8e;
+  --bad:#ef5d78; --warn:#f0a942; --mono:'JetBrains Mono','Fira Code',Consolas,monospace;
+  --sans:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);}
+.app{display:flex;flex-direction:column;height:100vh;}
+.topbar{height:46px;background:#0a0c11;border-bottom:1px solid var(--line);display:flex;align-items:center;
+  padding:0 16px;gap:12px;flex-shrink:0;}
+.logo{font-family:var(--mono);font-weight:700;color:var(--accent);font-size:14px;}
+.logo span{color:var(--muted);font-weight:400;}
+.timerbox{margin-left:auto;font-family:var(--mono);font-size:16px;padding:5px 14px;border-radius:6px;
+  border:1px solid var(--line);background:var(--panel2);display:none;letter-spacing:1px;}
+.timerbox.show{display:block;}
+.timerbox.warn{color:var(--warn);border-color:var(--warn);}
+.timerbox.crit{color:var(--bad);border-color:var(--bad);animation:pulse 1s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.5;}}
+.body{flex:1;display:flex;min-height:0;}
+.sidebar{width:280px;background:var(--panel);border-right:1px solid var(--line);overflow-y:auto;flex-shrink:0;padding:14px 0 30px;}
+.sidebar-title{font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;
+  padding:0 16px 10px;border-bottom:1px solid var(--line);margin-bottom:4px;}
+.folder-name{font-family:var(--mono);font-size:11.5px;color:var(--warn);padding:12px 16px 4px;letter-spacing:.05em;}
+.topicitem{font-family:var(--mono);font-size:12.5px;color:var(--muted);padding:8px 16px 8px 24px;cursor:pointer;
+  display:flex;flex-direction:column;gap:2px;border-left:2px solid transparent;}
+.topicitem:hover{background:var(--panel2);color:var(--text);}
+.topicitem.active{background:var(--panel2);color:var(--accent);border-left:2px solid var(--accent);}
+.topicitem .n{color:inherit;}
+.topicitem .meta{font-size:10.5px;color:var(--muted);}
+.main{flex:1;overflow-y:auto;min-width:0;}
+.wrap{max-width:880px;margin:0 auto;padding:34px 40px 60px;}
+
+/* Setup screen */
+.setup-card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:30px 32px;}
+.setup-eyebrow{font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;}
+.setup-title{font-family:var(--mono);font-size:28px;margin:6px 0 18px;font-weight:700;}
+.setup-stats{display:flex;gap:14px;margin-bottom:22px;flex-wrap:wrap;}
+.stat{font-family:var(--mono);font-size:12.5px;background:var(--panel2);border:1px solid var(--line);
+  padding:7px 14px;border-radius:6px;color:var(--muted);}
+.stat b{color:var(--text);}
+.opt-row{display:flex;align-items:center;justify-content:space-between;padding:13px 0;border-top:1px solid var(--line);}
+.opt-row:first-of-type{border-top:none;}
+.opt-label{font-size:14px;}
+.opt-sub{font-size:12px;color:var(--muted);margin-top:2px;}
+.switch{position:relative;width:42px;height:24px;background:var(--panel2);border:1px solid var(--line);border-radius:14px;
+  cursor:pointer;flex-shrink:0;}
+.switch.on{background:var(--accent);border-color:var(--accent);}
+.switch .knob{position:absolute;top:2px;left:2px;width:18px;height:18px;background:#fff;border-radius:50%;transition:left .15s;}
+.switch.on .knob{left:20px;}
+.timer-input{display:flex;align-items:center;gap:8px;}
+.timer-input input{width:64px;font-family:var(--mono);background:var(--panel2);border:1px solid var(--line);
+  color:var(--text);border-radius:6px;padding:6px 10px;font-size:13px;}
+.startbtn{margin-top:26px;width:100%;padding:13px;background:var(--accent);border:none;border-radius:7px;
+  color:#fff;font-family:var(--mono);font-size:14.5px;font-weight:600;cursor:pointer;}
+.startbtn:hover{opacity:.9;}
+
+/* Running test */
+.progresswrap{display:flex;align-items:center;gap:12px;margin-bottom:18px;}
+.progress-track{flex:1;height:6px;background:var(--panel2);border-radius:3px;overflow:hidden;}
+.progress-fill{height:100%;background:var(--accent);transition:width .2s;}
+.qmeta{font-family:var(--mono);font-size:12px;color:var(--muted);white-space:nowrap;}
+.qcard{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:26px 28px;margin-bottom:18px;}
+.qnum{font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:10px;}
+.qtext{font-size:15.5px;line-height:1.6;margin:0 0 4px;}
+pre.qblock{font-family:var(--mono);font-size:13px;background:var(--bg);border:1px solid var(--line);border-radius:6px;
+  padding:12px 14px;margin:10px 0 4px;overflow-x:auto;line-height:1.5;}
+code{font-family:var(--mono);font-size:13.5px;background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:1px 6px;}
+.options{display:flex;flex-direction:column;gap:9px;margin-top:16px;}
+.opt{font-family:var(--mono);font-size:13.5px;text-align:left;background:var(--panel2);border:1px solid var(--line);
+  color:var(--text);padding:11px 15px;border-radius:7px;cursor:pointer;display:flex;gap:11px;}
+.opt:hover{border-color:var(--accent);}
+.opt.selected{border-color:var(--accent);background:rgba(91,140,255,.12);}
+.opt .tag{color:var(--muted);flex-shrink:0;}
+.navrow{display:flex;justify-content:space-between;gap:10px;margin-top:4px;}
+.navbtn{font-family:var(--mono);font-size:12.5px;background:var(--panel2);border:1px solid var(--line);color:var(--text);
+  padding:9px 18px;border-radius:7px;cursor:pointer;}
+.navbtn:hover{border-color:var(--accent);}
+.navbtn:disabled{opacity:.35;cursor:default;}
+.navbtn.submit{border-color:var(--good);color:var(--good);margin-left:auto;}
+.navbtn.submit:hover{background:rgba(62,207,142,.1);}
+
+/* palette */
+.palette-head{font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;
+  margin:22px 0 10px;}
+.palette{display:grid;grid-template-columns:repeat(auto-fill,minmax(38px,1fr));gap:7px;}
+.pnode{font-family:var(--mono);font-size:12px;height:36px;border-radius:6px;border:1px solid var(--line);
+  background:var(--panel2);color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.pnode.answered{background:rgba(62,207,142,.12);border-color:var(--good);color:var(--good);}
+.pnode.current{border-color:var(--accent);color:var(--accent);box-shadow:0 0 0 2px rgba(91,140,255,.25);}
+
+/* results */
+.result-card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:34px;text-align:center;margin-bottom:20px;}
+.result-score{font-family:var(--mono);font-size:52px;font-weight:700;color:var(--good);}
+.result-sub{color:var(--muted);font-size:13.5px;margin-top:6px;}
+.result-actions{display:flex;gap:10px;justify-content:center;margin-top:20px;}
+.review-item{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:18px 20px;margin-bottom:12px;}
+.review-item .rq{font-size:14px;line-height:1.55;margin-bottom:10px;}
+.review-opt{font-family:var(--mono);font-size:13px;padding:8px 12px;border-radius:6px;margin-bottom:6px;
+  border:1px solid var(--line);background:var(--panel2);display:flex;gap:9px;}
+.review-opt.correct{border-color:var(--good);background:rgba(62,207,142,.1);color:var(--good);}
+.review-opt.wrong{border-color:var(--bad);background:rgba(239,93,120,.1);color:var(--bad);}
+.review-exp{font-size:12.5px;color:var(--muted);margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);}
+.status-pill{font-family:var(--mono);font-size:10.5px;padding:2px 9px;border-radius:10px;margin-left:8px;}
+.status-pill.ok{background:rgba(62,207,142,.15);color:var(--good);}
+.status-pill.no{background:rgba(239,93,120,.15);color:var(--bad);}
+.status-pill.skip{background:rgba(240,169,66,.15);color:var(--warn);}
+::-webkit-scrollbar{width:9px;}
+::-webkit-scrollbar-track{background:var(--panel);}
+::-webkit-scrollbar-thumb{background:var(--line);border-radius:5px;}
+.menu-toggle{display:none;background:none;border:none;color:var(--text);font-size:18px;cursor:pointer;}
+@media (max-width:760px){
+  .sidebar{position:fixed;z-index:10;height:calc(100vh - 46px);top:46px;transform:translateX(-100%);transition:transform .2s;background:var(--panel);}
+  .sidebar.open{transform:translateX(0);}
+  .wrap{padding:20px 16px 50px;}
+  .menu-toggle{display:inline-flex;}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <button class="menu-toggle" id="menuToggle">☰</button>
+    <div class="logo">cpp::quiz <span>// timed practice mode</span></div>
+    <div class="timerbox" id="timerBox">15:00</div>
+  </div>
+  <div class="body">
+    <div class="sidebar" id="sidebar">
+      <div class="sidebar-title">Question Sets</div>
+      <div id="tree"></div>
+    </div>
+    <div class="main"><div class="wrap" id="wrap"></div></div>
+  </div>
+</div>
+
+<script>
+function esc_pre(s){ return s; } // content already pre-escaped for HTML
+
+const DATA = [
+{folder:"Volume 1", topics:[
+  {id:"oop", title:"OOP Fundamentals", questions:[
+    {q:`Which statement about constructors is correct?`, o:[`A constructor has a return type void.`,`A constructor can be declared virtual.`,`A constructor is automatically called when an object is created.`,`A constructor must always take at least one parameter.`], a:2, e:`Constructors run automatically at object creation; they have no return type and can't be virtual.`},
+    {q:`How many destructors can a class have?`, o:[`One`,`Two`,`Multiple (overloaded)`,`Unlimited`], a:0, e:`A class can only ever have a single destructor — destructors can't be overloaded.`},
+    {q:`When is the copy constructor invoked?`, o:[`<pre class="qblock">A a;\nA b = a;</pre>`,`<pre class="qblock">A a;\nA b;\nb = a;</pre>`,`<pre class="qblock">A *p = new A;</pre>`,`<pre class="qblock">delete p;</pre>`], a:0, e:`Direct-initializing b from an existing a calls the copy constructor; option B is plain assignment on an already-constructed b.`},
+    {q:`What is the signature of a move constructor?`, o:[`A(A&)`,`A(const A&)`,`A(A&&)`,`A(A*)`], a:2, e:`Move constructors take a non-const rvalue reference to the same type.`},
+    {q:`Which statement calls the move assignment operator?`, o:[`<pre class="qblock">A b = std::move(a);</pre>`,`<pre class="qblock">A b(a);</pre>`,`<pre class="qblock">b = std::move(a);</pre>`,`<pre class="qblock">A b = a;</pre>`], a:2, e:`b already exists, so "b = std::move(a)" is assignment (move assignment), not construction.`},
+    {q:`Which of the following is NOT part of the Rule of Five?`, o:[`Destructor`,`Copy Constructor`,`Copy Assignment Operator`,`Friend Function`], a:3, e:`The Rule of Five covers destructor, copy ctor/assignment, and move ctor/assignment — friend functions aren't part of it.`},
+    {q:`Which keyword enables runtime polymorphism?`, o:[`static`,`virtual`,`inline`,`explicit`], a:1, e:`virtual enables dynamic dispatch through the vtable.`},
+    {q:`A class becomes abstract when:`, o:[`It contains only constructors.`,`It has at least one pure virtual function.`,`It has a virtual destructor.`,`It has private members.`], a:1, e:`A single pure virtual function is enough to make a class abstract.`},
+    {q:`Choose the correct declaration of a pure virtual function.`, o:[`virtual void fun();`,`virtual void fun() = 0;`,`void virtual fun() {}`,`pure virtual void fun();`], a:1, e:`"= 0" after the declaration is the syntax for a pure virtual function.`},
+    {q:`<pre class="qblock">class A {\npublic:\n    virtual void fun() = 0;\n};</pre>Which statement is correct?`, o:[`<code>A obj;</code> is valid.`,`An object of A cannot be created.`,`A has no constructor.`,`A cannot have derived classes.`], a:1, e:`A is abstract (pure virtual fun), so it can't be instantiated directly — though it can still have a constructor and derived classes.`},
+    {q:`Which members are directly accessible inside a derived class?`, o:[`Public only`,`Private only`,`Protected and Public (subject to inheritance mode)`,`All members`], a:2, e:`Private base members stay hidden; protected and public ones are accessible, adjusted by the inheritance mode.`},
+    {q:`Why should a base class destructor be virtual?`, o:[`To improve performance.`,`To allow constructor overloading.`,`To ensure both derived and base destructors are called when deleting through a base pointer.`,`To make the class abstract.`], a:2, e:`Without it, deleting a Derived object via a Base* skips Derived's cleanup — undefined behavior.`},
+    {q:`Which inheritance type preserves the public members of the base class as public in the derived class?`, o:[`Private`,`Protected`,`Public`,`Friend`], a:2, e:`Public inheritance keeps base-class access levels unchanged in the derived class.`},
+    {q:`Which condition is required for overriding?`, o:[`Same function name only.`,`Same name and same parameter list in base and derived classes.`,`Different parameter list.`,`Same return type only.`], a:1, e:`A mismatched signature creates an unrelated overload instead of an override.`},
+    {q:`<pre class="qblock">Base* ptr = new Derived;\nptr->display();</pre>display() is declared virtual. Which function is called?`, o:[`Base::display()`,`Derived::display()`,`Compile-time error`,`Depends on the compiler`], a:1, e:`Virtual dispatch resolves to the actual (derived) object type at runtime.`},
+    {q:`<pre class="qblock">class Base {};\nclass Derived : public Base {};\n\nDerived d;\nBase b = d;</pre>What happens?`, o:[`Runtime error`,`Object slicing occurs.`,`Compile-time error`,`Move constructor is called.`], a:1, e:`Assigning a Derived object into a Base by value truncates it — only the Base portion is copied.`},
+    {q:`If two base classes contain a function with the same name, how can you call a specific one?`, o:[`Base1::fun();`,`fun(Base1);`,`this->Base1();`,`super.fun();`], a:0, e:`Explicit scope resolution disambiguates which base's version to call.`},
+    {q:`What is the purpose of the override keyword?`, o:[`Makes a function virtual.`,`Ensures a function correctly overrides a virtual base class function.`,`Prevents overriding.`,`Calls the base class function automatically.`], a:1, e:`It's a compiler-checked safety net catching signature mismatches.`},
+    {q:`A class has a non-trivial destructor if:`, o:[`The compiler generates it automatically.`,`The destructor is user-defined or performs non-trivial cleanup.`,`The class has only primitive data members.`,`The destructor is deleted.`], a:1, e:`Trivial destructors are compiler-generated no-ops; user-defined cleanup logic makes a destructor non-trivial.`},
+    {q:`<pre class="qblock">class Base {\npublic:\n    Base() { cout &lt;&lt; "B "; }\n    virtual ~Base() { cout &lt;&lt; "~B "; }\n};\nclass Derived : public Base {\npublic:\n    Derived() { cout &lt;&lt; "D "; }\n    ~Derived() { cout &lt;&lt; "~D "; }\n};\nint main() {\n    Base* p = new Derived;\n    delete p;\n}</pre>What is the output?`, o:[`B D ~B`,`B D ~D ~B`,`B ~D ~B`,`Compile Error`], a:1, e:`Construction runs Base then Derived; virtual destruction runs Derived then Base.`}
+  ]}
+]},
+{folder:"Volume 3", topics:[
+  {id:"modern1", title:"Modern C++ — Set 1", questions:[
+    {q:`What is the primary purpose of constexpr?`, o:[`Allocate memory on heap`,`Allow compile-time evaluation when possible`,`Make a variable constant only at runtime`,`Prevent object copying`], a:1},
+    {q:`Which declaration is valid?`, o:[`constexpr int x = 10;`,`constexpr int x;`,`constexpr int x = rand();`,`constexpr int *p = new int(5);`], a:0, e:`constexpr requires a compile-time constant initializer; rand() and an uninitialized declaration don't qualify.`},
+    {q:`<pre class="qblock">constexpr int square(int x) {\n    return x * x;\n}\nint a = square(5);</pre>What is true?`, o:[`Compile Error`,`square(5) can be evaluated at compile time`,`Always evaluated at runtime`,`constexpr functions cannot return int`], a:1},
+    {q:`What does std::optional<T> represent?`, o:[`A dynamic array`,`A pointer`,`An object that may or may not contain a value`,`A reference wrapper`], a:2},
+    {q:`Which header contains std::optional?`, o:[`&lt;memory&gt;`,`&lt;optional&gt;`,`&lt;variant&gt;`,`&lt;utility&gt;`], a:1},
+    {q:`How do you check whether an optional contains a value?`, o:[`opt.empty()`,`opt.has_value()`,`opt.exist()`,`opt.valid()`], a:1},
+    {q:`<pre class="qblock">optional&lt;int&gt; x;</pre>Initially,`, o:[`contains 0`,`contains nullptr`,`contains no value`,`Compile Error`], a:2},
+    {q:`What is std::variant?`, o:[`A smart pointer`,`A type-safe union`,`A container`,`An exception class`], a:1},
+    {q:`Which header defines std::variant?`, o:[`&lt;variant&gt;`,`&lt;optional&gt;`,`&lt;tuple&gt;`,`&lt;memory&gt;`], a:0},
+    {q:`<pre class="qblock">variant&lt;int,string&gt; v;</pre>Initially v contains`, o:[`string`,`nullptr`,`first alternative (int)`,`nothing`], a:2},
+    {q:`How do you access a value from a variant?`, o:[`v.value()`,`get&lt;int&gt;(v)`,`v.at()`,`v[0]`], a:1},
+    {q:`What happens if you call <code>get&lt;int&gt;(v)</code> when v currently stores a string?`, o:[`Returns 0`,`Returns nullptr`,`Throws std::bad_variant_access`,`Compile Error`], a:2},
+    {q:`Why is std::visit() used?`, o:[`To iterate over containers`,`To safely process the currently active value inside a variant`,`To visit files`,`To traverse trees`], a:1},
+    {q:`<pre class="qblock">variant&lt;int,string&gt; v = 10;</pre>Which statement is true?`, o:[`get&lt;int&gt;(v) returns 10`,`get&lt;string&gt;(v) returns "10"`,`Compile Error`,`Both are valid`], a:0},
+    {q:`What does this lambda return?<pre class="qblock">[](int x) {\n    return x*x;\n}</pre>`, o:[`Pointer`,`Function object`,`Integer`,`Reference`], a:2, e:`Calling the lambda evaluates x*x, an int.`},
+    {q:`Which symbol introduces a lambda?`, o:[`()`,`{}`,`[]`,`<>`], a:2},
+    {q:`What does the capture list [] mean?`, o:[`Capture all variables by reference`,`Capture all variables by value`,`Capture nothing`,`Capture only global variables`], a:2},
+    {q:`Which capture list captures everything by reference?`, o:[`[=]`,`[&]`,`[]`,`[this]`], a:1},
+    {q:`What does this print?<pre class="qblock">int x = 5;\nauto f = [=]() {\n    cout &lt;&lt; x;\n};\nx = 10;\nf();</pre>`, o:[`5`,`10`,`Compile Error`,`Undefined Behavior`], a:0},
+    {q:`Predict the output:<pre class="qblock">optional&lt;int&gt; x;\nif(x)\n    cout&lt;&lt;"YES";\nelse\n    cout&lt;&lt;"NO";</pre>`, o:[`YES`,`NO`,`Compile Error`,`Runtime Error`], a:1}
+  ]},
+  {id:"modern2", title:"Modern C++ — Set 2", questions:[
+    {q:`Which statement is true about constexpr variables?`, o:[`A constexpr variable can be modified after initialization.`,`A constexpr variable must be initialized with a compile-time constant expression.`,`constexpr variables are always stored on the heap.`,`constexpr can only be used with functions.`], a:1},
+    {q:`<pre class="qblock">constexpr int add(int a, int b) {\n    return a + b;\n}</pre>Which statement is correct?`, o:[`It can only be called at compile time.`,`It can be evaluated at compile time or runtime depending on the arguments.`,`It must return void.`,`It cannot have parameters.`], a:1},
+    {q:`Which is NOT allowed in a constexpr variable initialization?`, o:[`constexpr int x = 5;`,`<pre class="qblock">const int y = 10;\nconstexpr int x = y;</pre>`,`constexpr int x = rand();`,`constexpr char c = 'A';`], a:2},
+    {q:`<pre class="qblock">optional&lt;int&gt; x = 25;</pre>How do you access the value?`, o:[`x.value()`,`*x`,`Both A and B`,`x.get()`], a:2},
+    {q:`<pre class="qblock">optional&lt;int&gt; x;</pre>Which is true?`, o:[`x.value() returns 0`,`x.has_value() returns false`,`x contains garbage`,`Compile Error`], a:1},
+    {q:`Calling x.value() when x has no value`, o:[`Returns 0`,`Returns nullptr`,`Throws std::bad_optional_access`,`Compile Error`], a:2},
+    {q:`Which header contains std::visit?`, o:[`&lt;visit&gt;`,`&lt;variant&gt;`,`&lt;optional&gt;`,`&lt;memory&gt;`], a:1},
+    {q:`Which function is normally used together with std::variant?`, o:[`std::copy()`,`std::visit()`,`std::sort()`,`std::transform()`], a:1},
+    {q:`<pre class="qblock">variant&lt;int,double&gt; v = 3.14;</pre>Which statement is true?`, o:[`holds_alternative&lt;int&gt;(v) returns true`,`holds_alternative&lt;double&gt;(v) returns true`,`get&lt;int&gt;(v) returns 3`,`Compile Error`], a:1},
+    {q:`Which function checks which type is currently stored?`, o:[`variant.type()`,`holds_alternative&lt;T&gt;()`,`variant.check()`,`typeid(variant)`], a:1},
+    {q:`<pre class="qblock">auto f = [](int x) {\n    return x + 5;\n};</pre>Result of f(10)`, o:[`5`,`10`,`15`,`Compile Error`], a:2},
+    {q:`Which capture copies all local variables?`, o:[`[]`,`[=]`,`[&]`,`[this]`], a:1},
+    {q:`Which capture copies only x?`, o:[`[x]`,`[=]`,`[&]`,`[]`], a:0},
+    {q:`<pre class="qblock">int x = 5;\nauto f = [&]() {\n    x++;\n};\nf();</pre>Value of x?`, o:[`5`,`6`,`Compile Error`,`Undefined Behavior`], a:1},
+    {q:`Which lambda capture allows modifying the original variable?`, o:[`[=]`,`[]`,`[&]`,`[x]`], a:2},
+    {q:`What is the return type of a lambda?`, o:[`Function pointer`,`Anonymous closure type (function object)`,`std::function`,`void`], a:1},
+    {q:`What does this print?<pre class="qblock">int x = 10;\nauto f = [x]() {\n    cout &lt;&lt; x;\n};\nx = 20;\nf();</pre>`, o:[`10`,`20`,`Compile Error`,`Undefined Behavior`], a:0},
+    {q:`What does std::visit() require?`, o:[`A visitor callable (e.g., lambda) and one or more variants.`,`Only a variant.`,`Only a lambda.`,`A vector.`], a:0},
+    {q:`Which statement about std::variant is correct?`, o:[`It can hold multiple active values simultaneously.`,`It can hold exactly one active alternative at a time.`,`It behaves exactly like void*.`,`It is deprecated.`], a:1},
+    {q:`Predict the output:<pre class="qblock">variant&lt;int,string&gt; v = 100;\nvisit([](auto value) {\n    cout &lt;&lt; value;\n}, v);</pre>`, o:[`100`,`int`,`string`,`Compile Error`], a:0}
+  ]},
+  {id:"modern3", title:"Modern C++ — Set 3", questions:[
+    {q:`Which keyword indicates that a function may be evaluated at compile time?`, o:[`const`,`constexpr`,`inline`,`virtual`], a:1},
+    {q:`Which declaration is invalid?`, o:[`constexpr int x = 20;`,`constexpr bool flag = true;`,`constexpr int x = std::time(nullptr);`,`constexpr char ch = 'A';`], a:2},
+    {q:`<pre class="qblock">constexpr int cube(int x) {\n    return x*x*x;\n}\nconstexpr int y = cube(2);</pre>Value of y?`, o:[`6`,`8`,`4`,`Compile Error`], a:1},
+    {q:`Which header file contains std::optional?`, o:[`&lt;optional&gt;`,`&lt;variant&gt;`,`&lt;memory&gt;`,`&lt;utility&gt;`], a:0},
+    {q:`<pre class="qblock">optional&lt;int&gt; op = 50;</pre>Which is valid?`, o:[`cout &lt;&lt; op.value();`,`cout &lt;&lt; *op;`,`Both A and B`,`Neither`], a:2},
+    {q:`Which function checks whether an optional contains a value?`, o:[`valid()`,`has_value()`,`exist()`,`contains()`], a:1},
+    {q:`Calling <code>op.reset();</code> will`, o:[`Set value to zero`,`Remove the stored value`,`Delete heap memory`,`Throw an exception`], a:1},
+    {q:`std::variant is a`, o:[`Smart Pointer`,`Dynamic Array`,`Type-safe Union`,`Linked List`], a:2},
+    {q:`<pre class="qblock">variant&lt;int,string&gt; v = "Hello";</pre>Which type is currently active?`, o:[`int`,`string`,`Both`,`None`], a:1},
+    {q:`Which function retrieves the stored value from a variant?`, o:[`value()`,`get&lt;T&gt;()`,`at()`,`fetch()`], a:1},
+    {q:`If the wrong type is requested from a variant, what happens?`, o:[`Returns default value`,`Returns nullptr`,`Throws std::bad_variant_access`,`Compile Error`], a:2},
+    {q:`Purpose of std::visit()?`, o:[`Iterate vector`,`Process active value inside a variant`,`Visit files`,`Traverse tree`], a:1},
+    {q:`Lambda expressions are mainly used to create`, o:[`Anonymous functions`,`Classes`,`Objects`,`Arrays`], a:0},
+    {q:`<pre class="qblock">auto sum = [](int a,int b) {\n    return a+b;\n};</pre>Result of sum(4,6)`, o:[`24`,`10`,`46`,`Compile Error`], a:1},
+    {q:`Which capture copies everything by reference?`, o:[`[=]`,`[]`,`[&]`,`[this]`], a:2},
+    {q:`Which capture copies everything by value?`, o:[`[=]`,`[&]`,`[]`,`[*]`], a:0},
+    {q:`<pre class="qblock">int x=5;\nauto f=[&]() {\n    x*=2;\n};\nf();</pre>Value of x?`, o:[`5`,`10`,`2`,`Compile Error`], a:1},
+    {q:`<pre class="qblock">int x=5;\nauto f=[=]() {\n    return x;\n};\nx=20;\ncout&lt;&lt;f();</pre>Output?`, o:[`5`,`20`,`Compile Error`,`Undefined Behavior`], a:0},
+    {q:`Which header contains std::variant?`, o:[`&lt;optional&gt;`,`&lt;variant&gt;`,`&lt;tuple&gt;`,`&lt;memory&gt;`], a:1},
+    {q:`<pre class="qblock">variant&lt;int,string&gt; v=100;\nvisit([](auto x) {\n    cout&lt;&lt;x*2;\n},v);</pre>Output?`, o:[`100`,`200`,`Compile Error`,`Undefined Behavior`], a:1}
+  ]},
+  {id:"modern4", title:"Modern C++ — Set 4", questions:[
+    {q:`Which statement about constexpr is TRUE?`, o:[`Every call to a constexpr function is evaluated at compile time.`,`A constexpr function can also execute at runtime.`,`constexpr functions cannot have parameters.`,`constexpr functions cannot return user-defined types.`], a:1},
+    {q:`<pre class="qblock">constexpr int x = 10;\nint arr[x];</pre>This is`, o:[`Invalid`,`Valid because x is a constant expression`,`Runtime allocation`,`Undefined Behavior`], a:1},
+    {q:`Which is TRUE?`, o:[`const and constexpr are exactly the same.`,`Every constexpr variable is const.`,`Every const variable is constexpr.`,`Neither.`], a:1},
+    {q:`<pre class="qblock">optional&lt;int&gt; op;\ncout &lt;&lt; *op;</pre>What happens?`, o:[`Prints 0`,`Undefined Behavior (dereferencing an empty optional)`,`Throws bad_optional_access`,`Compile Error`], a:1},
+    {q:`Which one throws std::bad_optional_access?`, o:[`op.has_value();`,`op.value();`,`*op;`,`op.reset();`], a:1},
+    {q:`<pre class="qblock">optional&lt;int&gt; op = 5;\nop.reset();\ncout &lt;&lt; op.has_value();</pre>Output?`, o:[`1`,`true`,`false`,`Compile Error`], a:2, e:`reset() clears the value, so has_value() becomes false (conceptually — printed as 0 without std::boolalpha).`},
+    {q:`Which statement about variant is FALSE?`, o:[`It is type-safe.`,`It replaces many uses of unions.`,`It can hold multiple active values simultaneously.`,`It can store different types.`], a:2},
+    {q:`<pre class="qblock">variant&lt;int,double&gt; v = 3.5;</pre>What does <code>holds_alternative&lt;double&gt;(v)</code> return?`, o:[`false`,`true`,`Compile Error`,`nullptr`], a:1},
+    {q:`<pre class="qblock">variant&lt;int,string&gt; v = "ABC";</pre>Which is valid?`, o:[`get&lt;string&gt;(v)`,`get&lt;int&gt;(v)`,`Both`,`Neither`], a:0},
+    {q:`Purpose of visit(...)`, o:[`Iterate vector`,`Process currently active type in variant`,`Visit directories`,`File traversal`], a:1},
+    {q:`Lambda expressions are`, o:[`Anonymous functions`,`Classes`,`Templates only`,`Macros`], a:0},
+    {q:`<pre class="qblock">int x = 5;\nauto f = [=]() {\n    return x;\n};</pre>How is x captured?`, o:[`Reference`,`Pointer`,`Value`,`Move`], a:2},
+    {q:`<pre class="qblock">int x = 5;\nauto f = [&]() {\n    x++;\n};\nf();</pre>Output?`, o:[`5`,`6`,`Compile Error`,`Undefined`], a:1},
+    {q:`Which capture captures ONLY a by reference?`, o:[`[&]`,`[&a]`,`[a]`,`[=]`], a:1},
+    {q:`What does mutable allow inside a lambda?`, o:[`Capture by reference`,`Modify variables captured by value`,`Modify globals`,`Prevent copies`], a:1},
+    {q:`<pre class="qblock">int x = 10;\nauto f = [=]() mutable {\n    x++;\n    return x;\n};\ncout &lt;&lt; f();\ncout &lt;&lt; x;</pre>Output?`, o:[`1110`,`1011`,`1111`,`Compile Error`], a:0, e:`f() increments its own captured copy to 11 and prints it; the outer x stays untouched at 10.`},
+    {q:`Generic lambda<pre class="qblock">auto add=[](auto a,auto b) {\n    return a+b;\n};</pre>can accept`, o:[`only int`,`only float`,`any type supporting +`,`only string`], a:2},
+    {q:`if constexpr is evaluated`, o:[`Runtime`,`Compile Time`,`Link Time`,`Never`], a:1},
+    {q:`Which feature was introduced in C++17?`, o:[`variant`,`auto`,`virtual`,`new`], a:0},
+    {q:`<pre class="qblock">variant&lt;int,double&gt; v = 5;\nvisit([](auto x) {\n    cout &lt;&lt; x + 1;\n}, v);</pre>Output?`, o:[`5`,`6`,`51`,`Compile Error`], a:1}
+  ]}
+]},
+{folder:"Volume 4", topics:[
+  {id:"move_smart", title:"Move Semantics & Smart Pointers", questions:[
+    {q:`What is the return type of std::move(x)?`, o:[`T`,`T&`,`T&&`,`void`], a:2},
+    {q:`What does std::move() actually do?`, o:[`Moves memory to another location.`,`Copies the object.`,`Casts an object to an rvalue reference.`,`Deletes the original object.`], a:2},
+    {q:`Which constructor is called here?<pre class="qblock">A obj1;\nA obj2 = std::move(obj1);</pre>`, o:[`Copy constructor`,`Default constructor`,`Move constructor`,`Destructor`], a:2},
+    {q:`Which is the correct signature of a move constructor?`, o:[`A(const A&)`,`A(A&)`,`A(A&&)`,`A(const A&&)`], a:2},
+    {q:`Move semantics mainly help to`, o:[`Reduce memory usage.`,`Avoid unnecessary deep copies.`,`Increase recursion speed.`,`Prevent exceptions.`], a:1},
+    {q:`Which operator is overloaded for move assignment?`, o:[`=`,`==`,`+`,`&`], a:0},
+    {q:`Correct signature of move assignment operator?`, o:[`A& operator=(const A&)`,`A& operator=(A&&)`,`void operator=(A&&)`,`A operator=(A&&)`], a:1},
+    {q:`After <code>std::move(obj);</code> the object obj`, o:[`Is destroyed.`,`Is deleted.`,`Is still valid but in an unspecified (valid) state.`,`Cannot be used anymore.`], a:2},
+    {q:`Which smart pointer has exclusive ownership?`, o:[`shared_ptr`,`weak_ptr`,`unique_ptr`,`auto_ptr`], a:2},
+    {q:`Which smart pointer cannot be copied?`, o:[`shared_ptr`,`unique_ptr`,`weak_ptr`,`All of them`], a:1},
+    {q:`<pre class="qblock">unique_ptr&lt;int&gt; p1(new int(10));\nunique_ptr&lt;int&gt; p2 = std::move(p1);</pre>After this,`, o:[`Both pointers own the object.`,`Only p1 owns it.`,`Only p2 owns it.`,`Neither owns it.`], a:2},
+    {q:`After the above move, p1 == ?`, o:[`Points to memory`,`nullptr`,`Garbage`,`Compile Error`], a:1},
+    {q:`Which smart pointer allows multiple owners?`, o:[`unique_ptr`,`shared_ptr`,`weak_ptr`,`auto_ptr`], a:1},
+    {q:`What does use_count() return?`, o:[`Memory size`,`Number of references owning the object`,`Address`,`Reference count of weak pointers`], a:1},
+    {q:`<pre class="qblock">auto p = make_shared&lt;int&gt;(10);</pre>Which statement is TRUE?`, o:[`Uses new internally.`,`Recommended over shared_ptr&lt;int&gt;(new int(10)).`,`More efficient.`,`All of the above.`], a:3},
+    {q:`Why is make_shared() preferred?`, o:[`Better performance.`,`Exception safety.`,`Single memory allocation.`,`All of the above.`], a:3},
+    {q:`Purpose of weak_ptr?`, o:[`Exclusive ownership.`,`Shared ownership.`,`Observe a shared_ptr without increasing its reference count.`,`Replace unique_ptr.`], a:2},
+    {q:`Can weak_ptr directly access the object?`, o:[`Yes.`,`No, it must first be converted using lock().`,`Only with get().`,`Only after reset().`], a:1},
+    {q:`What problem does weak_ptr solve?`, o:[`Memory leak due to cyclic references.`,`Stack overflow.`,`Heap fragmentation.`,`Dangling pointers.`], a:0},
+    {q:`<pre class="qblock">shared_ptr&lt;int&gt; p1 = make_shared&lt;int&gt;(5);\nshared_ptr&lt;int&gt; p2 = p1;\ncout &lt;&lt; p1.use_count();</pre>Output?`, o:[`1`,`2`,`0`,`Compile Error`], a:1}
+  ]}
+]},
+{folder:"Volume 5", topics:[
+  {id:"stl1", title:"STL Algorithms — Set 1", questions:[
+    {q:`Which header file contains std::sort()?`, o:[`&lt;algorithm&gt;`,`&lt;vector&gt;`,`&lt;numeric&gt;`,`&lt;functional&gt;`], a:0},
+    {q:`What is the time complexity of std::sort()?`, o:[`O(n)`,`O(log n)`,`O(n log n)`,`O(n²)`], a:2},
+    {q:`<pre class="qblock">vector&lt;int&gt; v = {5,2,4,1};\nsort(v.begin(), v.end());</pre>Output?`, o:[`5421`,`1245`,`2451`,`Compile Error`], a:1},
+    {q:`Which functor sorts in descending order?`, o:[`less&lt;int&gt;()`,`greater&lt;int&gt;()`,`equal_to&lt;int&gt;()`,`minus&lt;int&gt;()`], a:1},
+    {q:`<pre class="qblock">sort(v.begin(), v.end(), greater&lt;int&gt;());</pre>This sorts the vector in`, o:[`Ascending order`,`Descending order`,`Random order`,`Compile Error`], a:1},
+    {q:`Which header contains std::accumulate()?`, o:[`&lt;algorithm&gt;`,`&lt;numeric&gt;`,`&lt;iterator&gt;`,`&lt;memory&gt;`], a:1},
+    {q:`<pre class="qblock">vector&lt;int&gt; v = {1,2,3,4};\ncout &lt;&lt; accumulate(v.begin(), v.end(), 0);</pre>Output?`, o:[`9`,`10`,`24`,`0`], a:1},
+    {q:`Purpose of count()?`, o:[`Sum elements`,`Count occurrences of a value`,`Find maximum`,`Sort elements`], a:1},
+    {q:`<pre class="qblock">vector&lt;int&gt; v = {1,2,3,2,2};\ncount(v.begin(), v.end(), 2);</pre>Returns`, o:[`2`,`3`,`4`,`5`], a:1},
+    {q:`Purpose of count_if()?`, o:[`Counts elements satisfying a condition`,`Counts all elements`,`Finds duplicates`,`Removes duplicates`], a:0},
+    {q:`<pre class="qblock">count_if(v.begin(), v.end(),\n    [](int x) {\n        return x % 2 == 0;\n    });</pre>This counts`, o:[`Odd numbers`,`Even numbers`,`Prime numbers`,`Negative numbers`], a:1},
+    {q:`Purpose of find()?`, o:[`Returns iterator to first matching element`,`Counts elements`,`Removes elements`,`Sorts elements`], a:0},
+    {q:`If find() doesn't find the element, it returns`, o:[`nullptr`,`-1`,`end()`,`0`], a:2},
+    {q:`Purpose of find_if()?`, o:[`Finds using a condition`,`Finds maximum`,`Finds duplicates`,`Finds minimum`], a:0},
+    {q:`Which algorithm applies a function to every element?`, o:[`for_each()`,`find()`,`count()`,`erase()`], a:0},
+    {q:`Purpose of transform()?`, o:[`Remove elements`,`Modify/convert elements into another range`,`Sort`,`Search`], a:1},
+    {q:`<pre class="qblock">vector&lt;int&gt; v = {1,2,3};\ntransform(v.begin(), v.end(),\n    v.begin(),\n    [](int x) {\n        return x*2;\n    });</pre>Output?`, o:[`123`,`246`,`369`,`Compile Error`], a:1},
+    {q:`Which algorithm removes matching elements?`, o:[`erase()`,`remove()`,`find()`,`sort()`], a:1},
+    {q:`Why do we use the erase-remove idiom?`, o:[`Because remove() does not actually erase elements from the container.`,`Because erase() doesn't exist.`,`To sort faster.`,`To avoid exceptions.`], a:0},
+    {q:`<pre class="qblock">vector&lt;int&gt; v = {1,2,3,4,5};\nsort(v.begin(), v.end(), greater&lt;int&gt;());</pre>Output?`, o:[`12345`,`54321`,`23451`,`Compile Error`], a:1},
+    {q:`🔥 Challenge: What is the output?<pre class="qblock">vector&lt;int&gt; v = {1,2,2,2,3,4};\ncout &lt;&lt; upper_bound(v.begin(),v.end(),2)\n     - lower_bound(v.begin(),v.end(),2);</pre>`, o:[`1`,`2`,`3`,`4`], a:2, e:`Three 2's exist in the range, so the gap between upper_bound and lower_bound is 3.`}
+  ]},
+  {id:"stl2", title:"STL Algorithms — Set 2", questions:[
+    {q:`Which header contains binary_search()?`, o:[`&lt;algorithm&gt;`,`&lt;numeric&gt;`,`&lt;iterator&gt;`,`&lt;functional&gt;`], a:0},
+    {q:`binary_search() requires the range to be`, o:[`Reversed`,`Sorted`,`Unique`,`Random`], a:1},
+    {q:`<pre class="qblock">vector&lt;int&gt; v = {1,2,3,4,5};\ncout &lt;&lt; binary_search(v.begin(), v.end(), 3);</pre>Output?`, o:[`0`,`1`,`3`,`Compile Error`], a:1},
+    {q:`What does binary_search() return?`, o:[`Iterator`,`Index`,`bool`,`Pointer`], a:2},
+    {q:`Which function returns an iterator to the first element that is not less than a given value?`, o:[`upper_bound()`,`lower_bound()`,`binary_search()`,`equal_range()`], a:1},
+    {q:`<pre class="qblock">vector&lt;int&gt; v = {1,2,2,2,3,4};\nauto it = lower_bound(v.begin(), v.end(), 2);</pre>it points to`, o:[`First 2`,`Last 2`,`3`,`1`], a:0},
+    {q:`<pre class="qblock">vector&lt;int&gt; v = {1,2,2,2,3,4};\nauto it = upper_bound(v.begin(), v.end(), 2);</pre>it points to`, o:[`First 2`,`Last 2`,`3`,`4`], a:2},
+    {q:`Difference between lower_bound() and upper_bound()?`, o:[`No difference`,`lower_bound → first ≥ value, upper_bound → first > value`,`lower_bound → last occurrence`,`upper_bound → first occurrence`], a:1},
+    {q:`Which function returns both lower and upper bounds together?`, o:[`pair_bound()`,`equal_range()`,`range_find()`,`bounds()`], a:1},
+    {q:`Return type of equal_range()?`, o:[`bool`,`pair&lt;iterator, iterator&gt;`,`iterator`,`int`], a:1},
+    {q:`stable_sort() differs from sort() because`, o:[`It is always faster`,`It preserves the relative order of equal elements`,`It uses Bubble Sort`,`It works only for integers`], a:1},
+    {q:`Which statement is TRUE?`, o:[`sort() is always stable`,`stable_sort() is stable`,`Both are stable`,`Neither is stable`], a:1},
+    {q:`Purpose of nth_element()?`, o:[`Fully sorts the container`,`Places the nth element in its sorted position`,`Finds duplicates`,`Removes elements`], a:1},
+    {q:`After nth_element()`, o:[`Entire container is sorted`,`Only the nth element is guaranteed to be in the correct sorted position`,`Container becomes reversed`,`Container becomes unchanged`], a:1},
+    {q:`Which function returns the smallest element?`, o:[`minimum()`,`min_element()`,`smallest()`,`find_min()`], a:1},
+    {q:`<pre class="qblock">vector&lt;int&gt; v={8,2,5,1};\nauto it=min_element(v.begin(),v.end());</pre>*it equals`, o:[`8`,`2`,`1`,`5`], a:2},
+    {q:`Which function returns the largest element?`, o:[`max()`,`largest_element()`,`max_element()`,`find_max()`], a:2},
+    {q:`Custom sorting is usually done using`, o:[`Lambda comparator`,`greater&lt;int&gt;()`,`Functor`,`All of the above`], a:3},
+    {q:`Which comparator sorts strings by length?`, o:[`[](string a,string b){return a&lt;b;}`,`[](string a,string b){return a.size()&lt;b.size();}`,`greater&lt;string&gt;()`,`less&lt;string&gt;()`], a:1},
+    {q:`Time complexity of binary_search()?`, o:[`O(n)`,`O(log n)`,`O(n log n)`,`O(1)`], a:1}
+  ]}
+]},
+{folder:"Review", topics:[
+  {id:"review_a", title:"Predict the Output — Review A", questions:[
+    {q:`<pre class="qblock">class A {\npublic:\n    A() { cout &lt;&lt; "A "; }\n    ~A() { cout &lt;&lt; "~A "; }\n};\nint main() {\n    A obj;\n}</pre>Output?`, o:[`A ~A`,`~A A`,`A`,`Compile Error`], a:0},
+    {q:`<pre class="qblock">class A {\npublic:\n    A(){ cout&lt;&lt;"A "; }\n    A(const A&){ cout&lt;&lt;"Copy "; }\n};\nint main() {\n    A a;\n    A b = a;\n}</pre>Output?`, o:[`AA`,`A Copy`,`Copy A`,`Compile Error`], a:1},
+    {q:`<pre class="qblock">class A {\npublic:\n    A(){}\n    A(A&&) { cout&lt;&lt;"Move"; }\n};\nint main() {\n    A a;\n    A b = std::move(a);\n}</pre>Output?`, o:[`Move`,`Copy`,`Nothing`,`Compile Error`], a:0},
+    {q:`<pre class="qblock">class Base {\npublic:\n    virtual void show() { cout&lt;&lt;"Base"; }\n};\nclass Derived : public Base {\npublic:\n    void show() override { cout&lt;&lt;"Derived"; }\n};\nint main() {\n    Base* p = new Derived;\n    p-&gt;show();\n}</pre>Output?`, o:[`Base`,`Derived`,`Compile Error`,`Undefined`], a:1},
+    {q:`<pre class="qblock">Base* p = new Derived;\ndelete p;</pre>Base destructor is not virtual. What happens?`, o:[`Compile Error`,`Only Base destructor runs (Undefined Behavior)`,`Both destructors run`,`Memory automatically freed correctly`], a:1},
+    {q:`<pre class="qblock">vector&lt;int&gt; v={5,1,4};\nsort(v.begin(),v.end());\ncout&lt;&lt;v[0];</pre>Output?`, o:[`5`,`1`,`4`,`Compile Error`], a:1},
+    {q:`<pre class="qblock">vector&lt;int&gt; v={1,2,3};\ncout&lt;&lt;accumulate(v.begin(),v.end(),0);</pre>Output?`, o:[`3`,`6`,`0`,`5`], a:1},
+    {q:`<pre class="qblock">vector&lt;int&gt; v={1,2,3,2};\ncout&lt;&lt;count(v.begin(),v.end(),2);</pre>Output?`, o:[`1`,`2`,`3`,`4`], a:1},
+    {q:`<pre class="qblock">vector&lt;int&gt; v={1,2,3};\nauto it=find(v.begin(),v.end(),5);\nif(it==v.end())\n    cout&lt;&lt;"NF";</pre>Output?`, o:[`5`,`NF`,`Compile Error`,`Nothing`], a:1},
+    {q:`<pre class="qblock">auto f=[](int x) {\n    return x*x;\n};\ncout&lt;&lt;f(4);</pre>Output?`, o:[`8`,`16`,`4`,`Compile Error`], a:1},
+    {q:`<pre class="qblock">int x=10;\nauto f=[=]() {\n    cout&lt;&lt;x;\n};\nx=20;\nf();</pre>Output?`, o:[`20`,`10`,`Compile Error`,`Undefined`], a:1},
+    {q:`<pre class="qblock">int x=10;\nauto f=[&]() {\n    cout&lt;&lt;x;\n};\nx=20;\nf();</pre>Output?`, o:[`10`,`20`,`Compile Error`,`Undefined`], a:1},
+    {q:`<pre class="qblock">shared_ptr&lt;int&gt; p1=make_shared&lt;int&gt;(5);\nshared_ptr&lt;int&gt; p2=p1;\ncout&lt;&lt;p1.use_count();</pre>Output?`, o:[`1`,`2`,`3`,`0`], a:1},
+    {q:`<pre class="qblock">unique_ptr&lt;int&gt; p1(new int(10));\nunique_ptr&lt;int&gt; p2=std::move(p1);</pre>After move, p1`, o:[`Points to object`,`nullptr`,`Dangling pointer`,`Compile Error`], a:1},
+    {q:`<pre class="qblock">optional&lt;int&gt; op;\ncout&lt;&lt;op.has_value();</pre>Output?`, o:[`0`,`1`,`Compile Error`,`Exception`], a:0},
+    {q:`<pre class="qblock">variant&lt;int,string&gt; v=100;\nvisit([](auto x) {\n    cout&lt;&lt;x+1;\n},v);</pre>Output?`, o:[`100`,`101`,`Compile Error`,`Undefined`], a:1},
+    {q:`<pre class="qblock">vector&lt;int&gt; v={1,2,2,3};\ncout&lt;&lt;binary_search(v.begin(),v.end(),2);</pre>Output?`, o:[`2`,`1`,`true false`,`Compile Error`], a:1},
+    {q:`<pre class="qblock">vector&lt;int&gt; v={1,2,2,2,3};\ncout&lt;&lt;upper_bound(v.begin(),v.end(),2)\n     -lower_bound(v.begin(),v.end(),2);</pre>Output?`, o:[`1`,`2`,`3`,`4`], a:2},
+    {q:`<pre class="qblock">try {\n    throw runtime_error("Error");\n}\ncatch(const exception& e) {\n    cout&lt;&lt;"Caught";\n}</pre>Output?`, o:[`Error`,`Caught`,`Nothing`,`Compile Error`], a:1},
+    {q:`<pre class="qblock">int x=5;\nauto f=[=]() mutable {\n    x++;\n    cout&lt;&lt;x;\n};\nf();\ncout&lt;&lt;x;</pre>Output?`, o:[`66`,`56`,`65`,`Compile Error`], a:2}
+  ]},
+  {id:"review_b", title:"Predict the Output — Review B", questions:[
+    {q:`Which of the following is NOT a smart pointer?`, o:[`unique_ptr`,`shared_ptr`,`weak_ptr`,`auto`], a:3},
+    {q:`<pre class="qblock">Base *p = new Derived;</pre>If Base has a virtual destructor, deleting p will`, o:[`Call only Base destructor`,`Call only Derived destructor`,`Call both Derived then Base destructors`,`Cause compile error`], a:2},
+    {q:`Which keyword prevents a derived class from overriding a virtual function?`, o:[`override`,`virtual`,`final`,`explicit`], a:2},
+    {q:`std::move(x) performs`, o:[`Deep copy`,`Memory relocation`,`Cast to an rvalue reference`,`Deletes x`], a:2},
+    {q:`Which smart pointer cannot be copied?`, o:[`shared_ptr`,`weak_ptr`,`unique_ptr`,`All of them`], a:2},
+    {q:`<pre class="qblock">vector&lt;int&gt; v={4,1,3,2};\nsort(v.begin(),v.end());\ncout&lt;&lt;v.back();</pre>Output?`, o:[`1`,`2`,`3`,`4`], a:3},
+    {q:`Which algorithm returns an iterator?`, o:[`count()`,`find()`,`binary_search()`,`accumulate()`], a:1},
+    {q:`binary_search() returns`, o:[`Iterator`,`bool`,`Index`,`Pointer`], a:1},
+    {q:`Which header contains accumulate()?`, o:[`&lt;algorithm&gt;`,`&lt;numeric&gt;`,`&lt;memory&gt;`,`&lt;functional&gt;`], a:1},
+    {q:`<pre class="qblock">optional&lt;int&gt; op;\ncout&lt;&lt;op.has_value();</pre>Output?`, o:[`0`,`1`,`Exception`,`Compile Error`], a:0},
+    {q:`<pre class="qblock">variant&lt;int,string&gt; v="ABC";</pre>Current active type?`, o:[`int`,`string`,`Both`,`None`], a:1},
+    {q:`Purpose of visit()?`, o:[`Iterate vector`,`Handle the active type in a variant`,`Search a container`,`Visit directories`], a:1},
+    {q:`<pre class="qblock">int x=5;\nauto f=[&]() {\n    x++;\n};\nf();\ncout&lt;&lt;x;</pre>Output?`, o:[`5`,`6`,`Compile Error`,`Undefined`], a:1},
+    {q:`What is the complexity of binary_search()?`, o:[`O(n)`,`O(log n)`,`O(n log n)`,`O(1)`], a:1},
+    {q:`Which algorithm counts elements satisfying a condition?`, o:[`count_if()`,`find_if()`,`count()`,`remove_if()`], a:0},
+    {q:`<pre class="qblock">shared_ptr&lt;int&gt; p1=make_shared&lt;int&gt;(5);\nshared_ptr&lt;int&gt; p2=p1;\ncout&lt;&lt;p2.use_count();</pre>Output?`, o:[`1`,`2`,`0`,`5`], a:1},
+    {q:`Which function returns the first element greater than a value?`, o:[`lower_bound()`,`upper_bound()`,`equal_range()`,`binary_search()`], a:1},
+    {q:`<pre class="qblock">constexpr int square(int x) {\n    return x*x;\n}</pre>A constexpr function`, o:[`Always runs at compile time`,`Can run at compile time or runtime depending on context`,`Cannot take parameters`,`Must return void`], a:1},
+    {q:`Which lambda capture modifies the original variable?`, o:[`[=]`,`[=] mutable`,`[&]`,`[this]`], a:2},
+    {q:`<pre class="qblock">vector&lt;int&gt; v={1,2,2,2,3};\ncout&lt;&lt;upper_bound(v.begin(),v.end(),2)\n-lower_bound(v.begin(),v.end(),2);</pre>Output?`, o:[`2`,`3`,`1`,`4`], a:1},
+    {q:`🚀 Bonus: What is the output?<pre class="qblock">unique_ptr&lt;int&gt; p(new int(10));\nunique_ptr&lt;int&gt; q = std::move(p);\nif(p==nullptr)\n    cout&lt;&lt;"Moved";</pre>`, o:[`Moved`,`10`,`Compile Error`,`Undefined Behavior`], a:0}
+  ]}
+]}
+];
+
+const FLAT = [];
+DATA.forEach(f => f.topics.forEach(t => FLAT.push({...t, folder:f.folder})));
+
+let session = null; // active test session
+let activeTopicId = FLAT[0].id;
+let view = "setup"; // setup | running | results
+
+const treeEl = document.getElementById('tree');
+const wrapEl = document.getElementById('wrap');
+const timerBox = document.getElementById('timerBox');
+
+function shuffleArr(arr){
+  const a = arr.slice();
+  for(let i=a.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [a[i],a[j]]=[a[j],a[i]];
+  }
+  return a;
+}
+
+function renderTree(){
+  treeEl.innerHTML = '';
+  DATA.forEach(folder => {
+    const fName = document.createElement('div');
+    fName.className = 'folder-name';
+    fName.textContent = folder.folder;
+    treeEl.appendChild(fName);
+    folder.topics.forEach(t => {
+      const item = document.createElement('div');
+      item.className = 'topicitem' + (t.id===activeTopicId ? ' active' : '');
+      item.innerHTML = `<span class="n">${t.title}</span><span class="meta">${t.questions.length} questions</span>`;
+      item.onclick = () => {
+        if(view==='running' && !confirm('Leave this test in progress? Your answers will be lost.')) return;
+        activeTopicId = t.id; view='setup'; session=null;
+        stopTimer();
+        renderTree(); renderView();
+        if(window.innerWidth<=760) document.getElementById('sidebar').classList.remove('open');
+      };
+      treeEl.appendChild(item);
+    });
+  });
+}
+
+function currentTopic(){ return FLAT.find(t=>t.id===activeTopicId); }
+
+function renderSetup(){
+  timerBox.classList.remove('show');
+  const t = currentTopic();
+  wrapEl.innerHTML = `
+    <div class="setup-card">
+      <div class="setup-eyebrow">${t.folder}</div>
+      <div class="setup-title">${t.title}</div>
+      <div class="setup-stats">
+        <div class="stat"><b>${t.questions.length}</b> questions</div>
+        <div class="stat">MCQ · single answer</div>
+        <div class="stat">HackerRank-style timed test</div>
+      </div>
+      <div class="opt-row">
+        <div>
+          <div class="opt-label">Shuffle Questions</div>
+          <div class="opt-sub">Randomize question order each attempt</div>
+        </div>
+        <div class="switch" id="swQ"><div class="knob"></div></div>
+      </div>
+      <div class="opt-row">
+        <div>
+          <div class="opt-label">Shuffle Options</div>
+          <div class="opt-sub">Randomize A/B/C/D order per question</div>
+        </div>
+        <div class="switch on" id="swO"><div class="knob"></div></div>
+      </div>
+      <div class="opt-row">
+        <div>
+          <div class="opt-label">Timer</div>
+          <div class="opt-sub">Auto-submits when time runs out</div>
+        </div>
+        <div class="timer-input">
+          <input type="number" id="timerMins" min="1" max="180" value="${Math.max(5, t.questions.length)}">
+          <span style="font-family:var(--mono);font-size:12.5px;color:var(--muted);">minutes</span>
+        </div>
+      </div>
+      <button class="startbtn" id="startBtn">▶ Start Test</button>
+    </div>
+  `;
+  const swQ = document.getElementById('swQ');
+  const swO = document.getElementById('swO');
+  swQ.onclick = () => swQ.classList.toggle('on');
+  swO.onclick = () => swO.classList.toggle('on');
+  document.getElementById('startBtn').onclick = () => {
+    startSession(t, swQ.classList.contains('on'), swO.classList.contains('on'), parseInt(document.getElementById('timerMins').value,10) || 15);
+  };
+}
+
+function startSession(topic, shuffleQ, shuffleO, minutes){
+  let qs = topic.questions.map(q => ({...q, o:q.o.slice()}));
+  if(shuffleQ) qs = shuffleArr(qs);
+  qs = qs.map(q => {
+    if(!shuffleO) return {...q};
+    const idxs = shuffleArr(q.o.map((_,i)=>i));
+    const newOpts = idxs.map(i=>q.o[i]);
+    const newA = idxs.indexOf(q.a);
+    return {...q, o:newOpts, a:newA};
+  });
+  session = {
+    topic, questions:qs, current:0,
+    answers:new Array(qs.length).fill(null),
+    totalSeconds: minutes*60, secondsLeft: minutes*60,
+    finished:false
+  };
+  view='running';
+  startTimer();
+  renderView();
+}
+
+let timerHandle = null;
+function startTimer(){
+  stopTimer();
+  updateTimerDisplay();
+  timerHandle = setInterval(() => {
+    if(!session || session.finished) return;
+    session.secondsLeft--;
+    updateTimerDisplay();
+    if(session.secondsLeft<=0){
+      stopTimer();
+      finishTest(true);
+    }
+  }, 1000);
+}
+function stopTimer(){ if(timerHandle){ clearInterval(timerHandle); timerHandle=null; } }
+function updateTimerDisplay(){
+  if(!session){ timerBox.classList.remove('show'); return; }
+  timerBox.classList.add('show');
+  const s = Math.max(0, session.secondsLeft);
+  const m = Math.floor(s/60), sec = s%60;
+  timerBox.textContent = `${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+  timerBox.classList.remove('warn','crit');
+  if(s<=60) timerBox.classList.add('crit');
+  else if(s<=180) timerBox.classList.add('warn');
+}
+
+function renderRunning(){
+  const s = session;
+  const qi = s.current;
+  const q = s.questions[qi];
+  const answeredCount = s.answers.filter(a=>a!==null).length;
+  const letters = ['A','B','C','D'];
+
+  wrapEl.innerHTML = `
+    <div class="progresswrap">
+      <div class="progress-track"><div class="progress-fill" style="width:${(answeredCount/s.questions.length*100)}%"></div></div>
+      <div class="qmeta">${answeredCount}/${s.questions.length} answered</div>
+    </div>
+    <div class="qcard">
+      <div class="qnum">QUESTION ${qi+1} OF ${s.questions.length}</div>
+      <p class="qtext">${q.q}</p>
+      <div class="options" id="opts"></div>
+    </div>
+    <div class="navrow">
+      <button class="navbtn" id="prevBtn" ${qi===0?'disabled':''}>← previous</button>
+      <button class="navbtn" id="nextBtn" ${qi===s.questions.length-1?'disabled':''}>next →</button>
+      <button class="navbtn submit" id="submitBtn">✓ submit test</button>
+    </div>
+    <div class="palette-head">Question Palette</div>
+    <div class="palette" id="palette"></div>
+  `;
+
+  const optsEl = document.getElementById('opts');
+  q.o.forEach((opt,i)=>{
+    const b = document.createElement('button');
+    b.className = 'opt' + (s.answers[qi]===i ? ' selected' : '');
+    b.innerHTML = `<span class="tag">${letters[i]}</span><span>${opt}</span>`;
+    b.onclick = () => { s.answers[qi]=i; renderRunning(); };
+    optsEl.appendChild(b);
+  });
+
+  const paletteEl = document.getElementById('palette');
+  s.questions.forEach((_,i)=>{
+    const p = document.createElement('div');
+    p.className = 'pnode' + (s.answers[i]!==null?' answered':'') + (i===qi?' current':'');
+    p.textContent = i+1;
+    p.onclick = () => { s.current=i; renderRunning(); };
+    paletteEl.appendChild(p);
+  });
+
+  document.getElementById('prevBtn').onclick = () => { s.current=Math.max(0,s.current-1); renderRunning(); };
+  document.getElementById('nextBtn').onclick = () => { s.current=Math.min(s.questions.length-1,s.current+1); renderRunning(); };
+  document.getElementById('submitBtn').onclick = () => {
+    const unanswered = s.answers.filter(a=>a===null).length;
+    const msg = unanswered>0 ? `${unanswered} question(s) unanswered. Submit anyway?` : 'Submit test now?';
+    if(confirm(msg)) finishTest(false);
+  };
+}
+
+function finishTest(auto){
+  stopTimer();
+  session.finished = true;
+  session.autoSubmitted = auto;
+  session.timeTaken = session.totalSeconds - Math.max(0,session.secondsLeft);
+  view='results';
+  renderView();
+}
+
+function renderResults(){
+  timerBox.classList.remove('show');
+  const s = session;
+  const correct = s.answers.filter((a,i)=>a===s.questions[i].a).length;
+  const total = s.questions.length;
+  const pct = Math.round((correct/total)*100);
+  const mins = Math.floor(s.timeTaken/60), secs = s.timeTaken%60;
+  const letters = ['A','B','C','D'];
+
+  let html = `
+    <div class="result-card">
+      ${s.autoSubmitted ? '<div style="color:var(--warn);font-family:var(--mono);font-size:12px;margin-bottom:10px;">⏱ time expired — auto-submitted</div>' : ''}
+      <div class="result-score">${correct}/${total}</div>
+      <div class="result-sub">${pct}% correct · time used ${mins}m ${secs}s</div>
+      <div class="result-actions">
+        <button class="navbtn" id="retakeBtn">↺ retake (same settings)</button>
+        <button class="navbtn" id="setupBtn">⚙ back to setup</button>
+      </div>
+    </div>
+    <div class="palette-head">Review</div>
+  `;
+
+  s.questions.forEach((q,i)=>{
+    const chosen = s.answers[i];
+    const isCorrect = chosen===q.a;
+    const pill = chosen===null ? `<span class="status-pill skip">SKIPPED</span>` : isCorrect ? `<span class="status-pill ok">CORRECT</span>` : `<span class="status-pill no">WRONG</span>`;
+    html += `<div class="review-item"><div class="rq">Q${i+1}. ${q.q}${pill}</div>`;
+    q.o.forEach((opt,oi)=>{
+      let cls='review-opt';
+      if(oi===q.a) cls+=' correct';
+      else if(oi===chosen) cls+=' wrong';
+      html += `<div class="${cls}"><span class="tag">${letters[oi]}</span><span>${opt}</span></div>`;
+    });
+    if(q.e) html += `<div class="review-exp">${q.e}</div>`;
+    html += `</div>`;
+  });
+
+  wrapEl.innerHTML = html;
+  document.getElementById('retakeBtn').onclick = () => { renderSetup(); };
+  document.getElementById('setupBtn').onclick = () => { view='setup'; session=null; renderView(); };
+}
+
+function renderView(){
+  if(view==='setup') renderSetup();
+  else if(view==='running') renderRunning();
+  else if(view==='results') renderResults();
+}
+
+document.getElementById('menuToggle').onclick = () => document.getElementById('sidebar').classList.toggle('open');
+
+renderTree();
+renderView();
+</script>
+</body>
+</html>
